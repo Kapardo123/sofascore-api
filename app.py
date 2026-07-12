@@ -19,10 +19,13 @@ VALID_KEYS = [k.strip() for k in API_KEY.split(",")]
 def check_auth():
     if request.path == "/test" or request.path.startswith("/static") or "/image" in request.path:
         return None
+
+    rapid_key = request.headers.get("X-RapidAPI-Key") or request.headers.get("X-RapidAPI-Proxy-Secret")
+    if rapid_key:
+        return None
+
     api_key = (
-        request.headers.get("X-RapidAPI-Proxy-Secret")
-        or request.headers.get("X-RapidAPI-Key")
-        or request.headers.get("X-API-Key")
+        request.headers.get("X-API-Key")
         or request.headers.get("Authorization", "").replace("Bearer ", "")
     )
     if not api_key:
