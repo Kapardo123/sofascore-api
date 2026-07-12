@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sofascore Scraper API</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#21262d;--text:#c9d1d9;--muted:#8b949e;--blue:#58a6ff;--green:#3fb950;--red:#f85149;--orange:#d2991d;--accent:#1f6feb}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10}
+.topbar h1{font-size:16px;color:var(--blue);white-space:nowrap}
+.topbar .search-wrap{flex:1;max-width:600px;position:relative}
+.topbar input{width:100%;padding:8px 14px;background:#0d1117;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px}
+.topbar input:focus{outline:none;border-color:var(--accent)}
+.topbar .key-input{width:160px;font-size:12px;padding:6px 10px}
+.search-results{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:0 0 8px 8px;max-height:360px;overflow-y:auto;display:none;z-index:20}
+.search-results.show{display:block}
+.search-item{padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);transition:.1s}
+.search-item:hover{background:#1c2129}
+.search-item img{width:28px;height:28px;object-fit:contain}
+.search-item .info{flex:1}
+.search-item .name{font-size:13px;font-weight:600}
+.search-item .sub{font-size:11px;color:var(--muted)}
+.search-item .id{font-size:10px;color:var(--muted)}
+.main{padding:20px;max-width:1200px;margin:0 auto}
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px}
+.card-head{padding:10px 14px;background:#1c2129;font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:6px}
+.card-head .badge{background:var(--accent);padding:2px 10px;border-radius:10px;font-size:10px}
+.card-body{padding:10px 14px;max-height:500px;overflow-y:auto;font-size:12px}
+.card-body::-webkit-scrollbar{width:5px}
+.card-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.team-hero{display:flex;align-items:center;gap:16px;padding:16px}
+.team-hero img{width:96px;height:96px;object-fit:contain}
+.team-hero h2{font-size:22px;margin-bottom:4px}
+.match-card{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)}
+.match-card:last-child{border-bottom:none}
+.match-card .teams{flex:1;min-width:0}
+.match-card .teams .h{font-size:13px}
+.match-card .teams .a{font-size:11px;color:var(--muted)}
+.match-card .teams .meta{font-size:10px;color:var(--muted)}
+.match-card .score{font-weight:700;font-size:14px;color:var(--blue);min-width:50px;text-align:center}
+.match-card .status{font-size:9px;padding:2px 7px;border-radius:4px;white-space:nowrap}
+.status-live{background:var(--red);color:#fff}
+.status-finished{background:#2d333b;color:var(--muted)}
+.status-scheduled{background:var(--accent);color:#fff}
+.standings-table{width:100%;font-size:11px;border-collapse:collapse}
+.standings-table th{text-align:left;padding:5px 7px;background:#1c2129;color:var(--blue);font-weight:600;position:sticky;top:0;font-size:10px}
+.standings-table td{padding:4px 7px;border-bottom:1px solid var(--border)}
+.standings-table tr:hover td{background:#1c2129}
+.standings-table .pos{font-weight:700;color:var(--blue)}
+.tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:8px 16px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;background:var(--card);transition:.15s;white-space:nowrap}
+.tab:hover{border-color:var(--accent)}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.full{grid-column:1/-1}
+.loader{text-align:center;padding:30px;color:var(--muted)}
+.error{color:var(--red);background:#1a1015;padding:10px 14px;border-radius:8px;font-size:12px;margin:8px 0}
+select{padding:6px 10px;background:#0d1117;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer}
+select:focus{outline:none;border-color:var(--accent)}
+button{padding:8px 16px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;background:var(--card);color:var(--text);transition:.15s}
+button:hover{border-color:var(--accent)}
+.match-detail-head{padding:16px;text-align:center}
+.match-detail-head .big-score{font-size:36px;font-weight:800;margin:8px 0;color:var(--blue)}
+.match-detail-head .vs{display:flex;justify-content:center;align-items:center;gap:20px}
+.match-detail-head .vs .team-name{font-size:16px;font-weight:600}
+.match-detail-head .meta{font-size:11px;color:var(--muted);margin-top:8px}
+.incident-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.incident-row .time{min-width:30px;color:var(--muted)}
+.incident-row .icon{width:18px;text-align:center}
+.row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);gap:8px}
+.row:last-child{border-bottom:none}
+.row .name{color:var(--blue);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.row .val{color:var(--green);font-weight:600;white-space:nowrap;font-size:12px}
+.info-box{background:#0d1117;padding:8px 12px;border-radius:6px;margin-bottom:6px}
+.info-box .label{font-size:10px;color:var(--muted)}
+.info-box .value{font-size:13px;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Sofascore API</h1>
+  <div class="search-wrap">
+    <input type="text" id="searchInput" placeholder="Szukaj druzyny..." autocomplete="off">
+    <div class="search-results" id="searchResults"></div>
+  </div>
+  <input type="text" id="apiKey" class="key-input" placeholder="API Key" value="moj-testowy-klucz">
+</div>
+
+<div class="main" id="main">
+  <div class="tabs">
+    <div class="tab active" data-tab="live">Live mecze</div>
+    <div class="tab" data-tab="standings">Tabele ligowe</div>
+    <div class="tab" data-tab="tournaments">Turnieje</div>
+  </div>
+  <div id="tabContent"></div>
+</div>
+
+<script>
+const KEY = () => document.getElementById('apiKey').value;
+const H = () => ({'X-API-Key': KEY()});
+
+async function api(path) {
+  const r = await fetch(path, {headers: H()});
+  if (!r.ok) throw new Error(`${r.status}: ${r.statusText}`);
+  return r.json();
+}
+
+function showLoader() { document.getElementById('tabContent').innerHTML = '<div class="loader">Ladowanie...</div>'; }
+function showError(e) { document.getElementById('tabContent').innerHTML = `<div class="error">Blad: ${e.message}</div>`; }
+
+// === SEARCH ===
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input', function() {
+  clearTimeout(searchTimer);
+  const q = this.value.trim();
+  if (q.length < 2) { document.getElementById('searchResults').classList.remove('show'); return; }
+  searchTimer = setTimeout(() => doSearch(q), 300);
+});
+
+async function doSearch(q) {
+  const box = document.getElementById('searchResults');
+  try {
+    const r = await api(`/api/teams/search?q=${encodeURIComponent(q)}`);
+    if (!r.results.length) { box.innerHTML = '<div style="padding:12px;color:var(--muted)">Nic nie znaleziono</div>'; box.classList.add('show'); return; }
+    box.innerHTML = r.results.slice(0, 10).map(t => {
+      const e = t.entity || t;
+      return `<div class="search-item" onclick="showTeam(${e.id})">
+        <img src="/api/teams/${e.id}/image" onerror="this.style.display='none'">
+        <div class="info"><div class="name">${e.name}</div><div class="sub">${e.sport?.name||''} ${e.country?.name||''}</div></div>
+        <div class="id">ID:${e.id}</div>
+      </div>`;
+    }).join('');
+    box.classList.add('show');
+  } catch(e) {
+    box.innerHTML = `<div style="padding:12px;color:var(--red)">Blad: ${e.message}</div>`;
+    box.classList.add('show');
+  }
+}
+document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) document.getElementById('searchResults').classList.remove('show'); });
+
+// === TABS ===
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    loadTab(tab.dataset.tab);
+  });
+});
+
+async function loadTab(tab) {
+  showLoader();
+  switch(tab) {
+    case 'live': await loadLive(); break;
+    case 'standings': await loadStandings(); break;
+    case 'tournaments': await loadTournamentsView(); break;
+  }
+}
+
+function renderMatch(m) {
+  const st = m.status?.type || 'unknown';
+  const cls = st === 'inprogress' ? 'status-live' : st === 'finished' ? 'status-finished' : 'status-scheduled';
+  const txt = st === 'inprogress' ? 'LIVE' : st === 'finished' ? 'Koniec' : st === 'notstarted' ? (m.startTimestamp ? new Date(m.startTimestamp*1000).toLocaleDateString('pl',{day:'2-digit',month:'2-digit'}) : '--:--') : st;
+  const hid = m.homeTeam?.id, aid = m.awayTeam?.id;
+  const win = m.winnerCode ? (m.winnerCode === 1 ? 'W' : m.winnerCode === 2 ? 'P' : 'R') : '';
+  const winColor = win === 'W' ? 'var(--green)' : win === 'P' ? 'var(--red)' : '';
+  return `<div class="match-card" style="cursor:pointer" onclick="showMatchDetail(${m.id})">
+    <img src="${hid?'/api/teams/'+hid+'/image':''}" style="width:22px;height:22px;object-fit:contain" onerror="this.style.display='none'">
+    <div class="teams"><div class="h">${m.homeTeam?.name||'?'}</div><div class="a">${m.awayTeam?.name||'?'}</div><div class="meta">${m.tournament?.name||''}</div></div>
+    <img src="${aid?'/api/teams/'+aid+'/image':''}" style="width:22px;height:22px;object-fit:contain" onerror="this.style.display='none'">
+    <div class="score">${m.homeScore?.current??'-'} - ${m.awayScore?.current??'-'}${win?` <span style="font-size:11px;color:${winColor}">${win}</span>`:''}</div>
+    <span class="status ${cls}">${txt}</span>
+  </div>`;
+}
+
+// === LIVE MATCHES ===
+async function loadLive() {
+  try {
+    const r = await api('/api/matches/live');
+    const football = r.events.filter(e => e.tournament?.category?.sport?.name === 'Football');
+    let html = `<div class="card full"><div class="card-head">Live mecze <span class="badge">${football.length}</span></div><div class="card-body">`;
+    html += football.slice(0, 50).map(m => {
+      const st = m.status?.type || ''; const hid = m.homeTeam?.id, aid = m.awayTeam?.id;
+      return `<div class="match-card" style="cursor:pointer" onclick="showMatchDetail(${m.id})">
+        <img src="${hid?'/api/teams/'+hid+'/image':''}" style="width:22px;height:22px;object-fit:contain" onerror="this.style.display='none'">
+        <div class="teams"><div class="h">${m.homeTeam?.name||'?'}</div><div class="a">${m.awayTeam?.name||'?'}</div><div class="meta">${m.tournament?.name||''}</div></div>
+        <img src="${aid?'/api/teams/'+aid+'/image':''}" style="width:22px;height:22px;object-fit:contain" onerror="this.style.display='none'">
+        <div class="score">${m.homeScore?.current??0} - ${m.awayScore?.current??0}</div>
+        <span class="status ${st==='inprogress'?'status-live':'status-finished'}">${st==='inprogress'?'LIVE':'Koniec'}</span>
+      </div>`;
+    }).join('');
+    html += `</div></div>`;
+    document.getElementById('tabContent').innerHTML = html;
+  } catch(e) { showError(e); }
+}
+
+// === TEAM VIEW ===
+async function showTeam(id) {
+  document.getElementById('searchResults').classList.remove('show');
+  document.getElementById('searchInput').value = '';
+  showLoader();
+  
+  try {
+    const [team, next, last, transfers] = await Promise.all([
+      api(`/api/teams/${id}`).catch(() => null),
+      api(`/api/teams/${id}/matches/next`).catch(() => ({events:[]})),
+      api(`/api/teams/${id}/matches/last`).catch(() => ({events:[]})),
+      api(`/api/teams/${id}/transfers`).catch(() => null),
+    ]);
+    
+    if (!team) { showError(new Error('Nie znaleziono druzyny')); return; }
+    const t = team.team || team;
+    const logo = `/api/teams/${id}/image`;
+    const manager = t.manager?.name || t.manager || '';
+    const venue = t.venue;
+    const country = t.country?.name || '';
+    const founded = t.founded || (t.foundedAtTimestamp ? new Date(t.foundedAtTimestamp*1000).getFullYear() : '');
+
+    const allMatches = [...(last.events||[]), ...(next.events||[])].sort((a,b) => (b.startTimestamp||0) - (a.startTimestamp||0));
+    const byTournament = {};
+    allMatches.forEach(m => {
+      const tn = m.tournament?.name || 'Inne';
+      if (!byTournament[tn]) byTournament[tn] = [];
+      byTournament[tn].push(m);
+    });
+    const tournamentNames = Object.keys(byTournament);
+
+    let html = `
+    <div class="card full">
+      <div class="team-hero">
+        <img src="${logo}" onerror="this.style.display='none'">
+        <div style="flex:1">
+          <h2>${t.name || t.fullName || '?'}</h2>
+          <div style="display:flex;gap:20px;margin-top:6px;flex-wrap:wrap">
+            ${country?`<div class="info-box"><div class="label">Kraj</div><div class="value">${country}</div></div>`:''}
+            ${founded?`<div class="info-box"><div class="label">Zalozony</div><div class="value">${founded}</div></div>`:''}
+            ${manager?`<div class="info-box"><div class="label">Trener</div><div class="value">${manager}</div></div>`:''}
+            ${venue?.name?`<div class="info-box"><div class="label">Stadion</div><div class="value">${venue.name}${venue.capacity?' ('+Number(venue.capacity).toLocaleString()+')':''}</div></div>`:''}
+            ${venue?.city?.name?`<div class="info-box"><div class="label">Miasto</div><div class="value">${venue.city.name}</div></div>`:''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+    // Live match
+    const liveMatch = allMatches.find(m => m.status?.type === 'inprogress');
+    if (liveMatch) {
+      html += `<div class="card" style="cursor:pointer" onclick="showMatchDetail(${liveMatch.id})">
+        <div class="card-head">NA ZYWO - ${liveMatch.tournament?.name||''}</div>
+        <div class="card-body" style="text-align:center;padding:16px;font-size:15px">
+          <b>${liveMatch.homeTeam?.name}</b> ${liveMatch.homeScore?.current??0} - ${liveMatch.awayScore?.current??0} <b>${liveMatch.awayTeam?.name}</b>
+          <div style="font-size:11px;color:var(--muted)">${liveMatch.status?.description||''}</div>
+        </div></div>`;
+    }
+
+    // Next + Last match
+    const nextMatch = next.events?.find(m => m.status?.type !== 'finished');
+    const prevMatch = last.events?.find(m => m.status?.type === 'finished');
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card"><div class="card-head">Nastepny mecz</div><div class="card-body" style="text-align:center;padding:14px">
+        ${nextMatch ? `<div style="cursor:pointer" onclick="showMatchDetail(${nextMatch.id})"><div style="font-size:10px;color:var(--muted)">${nextMatch.tournament?.name||''}</div><div style="margin:6px 0"><b>${nextMatch.homeTeam?.name}</b> vs <b>${nextMatch.awayTeam?.name}</b></div><div style="font-size:11px;color:var(--blue)">${nextMatch.startTimestamp?new Date(nextMatch.startTimestamp*1000).toLocaleString('pl',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'?'}</div></div>` : '<div style="color:var(--muted)">Brak</div>'}
+      </div></div>
+      <div class="card"><div class="card-head">Ostatni mecz</div><div class="card-body" style="text-align:center;padding:14px">
+        ${prevMatch ? `<div style="cursor:pointer" onclick="showMatchDetail(${prevMatch.id})"><div style="font-size:10px;color:var(--muted)">${prevMatch.tournament?.name||''}</div><div style="margin:6px 0;font-size:20px;font-weight:800;color:var(--blue)">${prevMatch.homeScore?.current??0} - ${prevMatch.awayScore?.current??0}</div><div><b>${prevMatch.homeTeam?.name}</b> vs <b>${prevMatch.awayTeam?.name}</b></div></div>` : '<div style="color:var(--muted)">Brak</div>'}
+      </div></div>
+    </div>`;
+
+    // Matches
+    html += `<div class="card full">
+      <div class="card-head">Mecze <span class="badge">${allMatches.length}</span>
+        <select id="matchFilter" onchange="filterTeamMatches()" style="padding:4px 8px;font-size:11px">
+          <option value="all">Wszystkie rozgrywki</option>
+          ${tournamentNames.map(n => `<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('')}
+        </select>
+      </div>
+      <div class="card-body" id="teamMatches">${allMatches.slice(0,30).map(m => renderMatch(m)).join('')||'<div style="color:var(--muted);text-align:center;padding:16px">Brak meczow</div>'}</div>
+    </div>`;
+    window._teamMatches = allMatches;
+
+    // Transfers
+    const tf = transfers?.transfers || transfers || {};
+    const trIn = Array.isArray(tf.transfersIn) ? tf.transfersIn.slice(0,8) : [];
+    const trOut = Array.isArray(tf.transfersOut) ? tf.transfersOut.slice(0,8) : [];
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card"><div class="card-head">Transfery - Przyszlo <span class="badge">${trIn.length}</span></div>
+        <div class="card-body">${trIn.map(tr => `<div class="row"><span class="name">${tr.player?.name||tr.player||tr.fromTeamName||'?'}</span><span class="val">${tr.transferFeeDescription||tr.transferFee||''}</span></div>`).join('')||'<div style="color:var(--muted);text-align:center;padding:8px">Brak</div>'}</div></div>
+      <div class="card"><div class="card-head">Transfery - Odeszlo <span class="badge">${trOut.length}</span></div>
+        <div class="card-body">${trOut.map(tr => `<div class="row"><span class="name">${tr.player?.name||tr.player||tr.toTeamName||'?'}</span><span class="val">${tr.transferFeeDescription||tr.transferFee||''}</span></div>`).join('')||'<div style="color:var(--muted);text-align:center;padding:8px">Brak</div>'}</div></div>
+    </div>`;
+
+    html += `<br><button onclick="loadTab('live')">Powrot do live</button>`;
+    document.getElementById('tabContent').innerHTML = html;
+  } catch(e) { showError(e); }
+}
+
+function filterTeamMatches() {
+  const filter = document.getElementById('matchFilter')?.value || 'all';
+  const all = window._teamMatches || [];
+  const filtered = filter === 'all' ? all : all.filter(m => (m.tournament?.name||'Inne') === filter);
+  const el = document.getElementById('teamMatches');
+  if (el) el.innerHTML = filtered.map(m => renderMatch(m)).join('') || '<div style="color:var(--muted);text-align:center;padding:16px">Brak meczow</div>';
+}
+
+// === MATCH DETAIL WITH TABS ===
+async function showMatchDetail(id) {
+  showLoader();
+  try {
+    const match = await api(`/api/matches/${id}`).catch(() => null);
+    if (!match) { showError(new Error('Nie znaleziono meczu')); return; }
+    const m = match.event || match;
+    const tid = m.tournament?.uniqueTournament?.id || m.tournament?.id;
+    const sid = m.season?.id;
+
+    let html = `<div class="card full"><div class="match-detail-head">
+      <div class="meta">${m.tournament?.name||''} | ${m.status?.description||m.status?.type||'?'}</div>
+      <div class="vs">
+        <div class="team-name" style="cursor:pointer" onclick="showTeam(${m.homeTeam?.id})">${m.homeTeam?.name||'?'}</div>
+        <div class="big-score">${m.homeScore?.display ?? m.homeScore?.current ?? 0} - ${m.awayScore?.display ?? m.awayScore?.current ?? 0}</div>
+        <div class="team-name" style="cursor:pointer" onclick="showTeam(${m.awayTeam?.id})">${m.awayTeam?.name||'?'}</div>
+      </div>
+      <div class="meta">${m.startTimestamp?new Date(m.startTimestamp*1000).toLocaleString('pl'):''}</div>
+    </div></div>
+
+    <div class="tabs" style="margin-bottom:14px">
+      <div class="tab active" data-mtab="incidents" onclick="loadMatchTab(${id},'incidents')">Wydarzenia</div>
+      <div class="tab" data-mtab="stats" onclick="loadMatchTab(${id},'stats')">Statystyki</div>
+      <div class="tab" data-mtab="lineups" onclick="loadMatchTab(${id},'lineups')">Sklady</div>
+      <div class="tab" data-mtab="odds" onclick="loadMatchTab(${id},'odds')">Kursy</div>
+      <div class="tab" data-mtab="h2h" onclick="loadMatchTab(${id},'h2h')">H2H</div>`;
+
+    if (tid && sid) {
+      html += `<div class="tab" data-mtab="standings" onclick="loadMatchTab(${id},'standings',${tid},${sid})">Tabela</div>`;
+    }
+    html += `</div><div id="matchTabContent" style="display:grid;grid-template-columns:1fr 1fr;gap:14px"></div>
+    <br><button onclick="loadTab('live')">Powrot do live</button>`;
+
+    document.getElementById('tabContent').innerHTML = html;
+    window._matchData = {id, tid, sid};
+    loadMatchTabContent(id, 'incidents');
+  } catch(e) { showError(e); }
+}
+
+async function loadMatchTab(id, tab, tid, sid) {
+  document.querySelectorAll('[data-mtab]').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[data-mtab="${tab}"]`)?.classList.add('active');
+  loadMatchTabContent(id, tab, tid, sid);
+}
+
+async function loadMatchTabContent(id, tab, tid, sid) {
+  const el = document.getElementById('matchTabContent');
+  if (!el) return;
+  el.innerHTML = '<div class="loader" style="grid-column:1/-1">Ladowanie...</div>';
+
+  try {
+    switch(tab) {
+      case 'incidents': {
+        const r = await api(`/api/matches/${id}/incidents`).catch(() => ({incidents:[]}));
+        const icons = {'goal':'⚽','yellowCard':'🟨','redCard':'🟥','substitution':'🔄','penaltyGoal':'🎯','period':'⏱️','var':'📺','penaltyMissed':'❌'};
+        el.innerHTML = `<div class="card full"><div class="card-head">Wydarzenia <span class="badge">${r.incidents?.length||0}</span></div><div class="card-body">` +
+          (r.incidents?.length ? r.incidents.map(inc => {
+            const icon = icons[inc.incidentType] || '•';
+            const time = inc.time ? `${inc.time}'` : inc.addedTime ? `${inc.addedTime}'+` : '';
+            const player = inc.player?.name || inc.playerName || '';
+            const assist = inc.assist1?.name ? ` (as. ${inc.assist1.name})` : '';
+            return `<div class="incident-row" style="${inc.isHome?'':'flex-direction:row-reverse;text-align:right'}">
+              <span class="time">${time}</span><span class="icon">${icon}</span><span class="player">${player}<span style="font-size:10px;color:var(--muted)">${assist}</span></span></div>`;
+          }).join('') : '<div style="color:var(--muted);text-align:center;padding:20px">Brak wydarzen</div>') + '</div></div>';
+        break;
+      }
+      case 'stats': {
+        const r = await api(`/api/matches/${id}/statistics`).catch(() => ({statistics:[]}));
+        let rows = [];
+        for (const period of (r.statistics||[])) {
+          for (const group of (period.groups||[])) {
+            if (group.statisticsItems?.length) {
+              if (rows.length) rows.push({name:'-- '+group.groupName+' --',home:'',away:'',sep:true});
+              for (const item of group.statisticsItems) rows.push({name:item.name||item.key||'?',home:item.home??item.homeValue??'0',away:item.away??item.awayValue??'0'});
+            }
+          }
+        }
+        el.innerHTML = `<div class="card full"><div class="card-head">Statystyki</div><div class="card-body">` +
+          (rows.length ? `<table class="standings-table"><thead><tr><th style="text-align:right">Gosp.</th><th>Statystyka</th><th>Gosc</th></tr></thead><tbody>` +
+          rows.map(r => r.sep ? `<tr><td colspan="3" style="text-align:center;color:var(--blue);font-size:10px;padding:8px 0">${r.name}</td></tr>` : `<tr><td style="text-align:right;font-weight:700;color:var(--blue)">${r.home}</td><td style="text-align:center;color:var(--muted);font-size:10px">${r.name}</td><td style="font-weight:700;color:var(--blue)">${r.away}</td></tr>`).join('') + '</tbody></table>'
+          : '<div style="color:var(--muted);text-align:center;padding:20px">Brak statystyk</div>') + '</div></div>';
+        break;
+      }
+      case 'lineups': {
+        const r = await api(`/api/matches/${id}/lineups`).catch(() => null);
+        const homeLineup = r?.home || r?.lineup?.home || r?.homeTeam || {};
+        const awayLineup = r?.away || r?.lineup?.away || r?.awayTeam || {};
+        const renderPlayers = (data, label) => {
+          const players = data?.players || data?.members || [];
+          if (!players.length) return '';
+          const starters = players.filter(p => !p.substitute).slice(0,11);
+          const bench = players.filter(p => p.substitute).slice(0,9);
+          return `<div style="margin-bottom:12px"><div style="font-weight:600;color:var(--blue);margin-bottom:6px">${label}</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Wyjsciowy sklad (${starters.length})</div>
+            ${starters.map(p => `<div class="row"><span class="name">${p.player?.name||p.name||p.shirtNumber||'?'} ${p.shirtNumber ? '#'+p.shirtNumber : ''}</span><span class="val">${p.position||''}</span></div>`).join('')}
+            ${bench.length ? `<div style="font-size:11px;color:var(--muted);margin:6px 0 4px">Rezerwa (${bench.length})</div>${bench.map(p => `<div class="row"><span class="name">${p.player?.name||p.name||'?'} ${p.shirtNumber ? '#'+p.shirtNumber : ''}</span><span class="val">${p.position||''}</span></div>`).join('')}` : ''}
+          </div>`;
+        };
+        let lineupHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;grid-column:1/-1">';
+        lineupHtml += `<div class="card">${renderPlayers(homeLineup, 'Gospodarze') || '<div style="color:var(--muted);text-align:center;padding:20px">Brak danych</div>'}</div>`;
+        lineupHtml += `<div class="card">${renderPlayers(awayLineup, 'Goscie') || '<div style="color:var(--muted);text-align:center;padding:20px">Brak danych</div>'}</div>`;
+        lineupHtml += '</div>';
+        el.innerHTML = lineupHtml;
+        break;
+      }
+      case 'odds': {
+        const r = await api(`/api/matches/${id}/odds`).catch(() => null);
+        const markets = r?.markets || r?.odds?.markets || [];
+        let oddsHtml = '';
+        markets.slice(0,3).forEach(m => {
+          const choices = m.choices || m.outcomes || [];
+          oddsHtml += `<div class="card" style="margin-bottom:10px"><div class="card-head">${m.name||m.marketName||'Kursy'}</div><div class="card-body">` +
+            choices.map(c => `<div class="row"><span class="name">${c.name||c.initialName||'?'}</span><span class="val">${c.fractionalValue||c.value||c.odds||''}</span></div>`).join('') +
+            '</div></div>';
+        });
+        el.innerHTML = oddsHtml || '<div class="card full"><div class="card-body" style="text-align:center;color:var(--muted);padding:20px">Brak kursow</div></div>';
+        break;
+      }
+      case 'h2h': {
+        const r = await api(`/api/matches/${id}/h2h`).catch(() => null);
+        const td = r?.teamDuel;
+        let h2hHtml = '';
+        if (td) {
+          const total = (td.homeWins||0)+(td.awayWins||0)+(td.draws||0);
+          h2hHtml += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+            <div class="info-box" style="text-align:center"><div class="label">Gosp. wygrane</div><div class="value">${td.homeWins||0}</div></div>
+            <div class="info-box" style="text-align:center"><div class="label">Remisy</div><div class="value">${td.draws||0}</div></div>
+            <div class="info-box" style="text-align:center"><div class="label">Gosc wygrane</div><div class="value">${td.awayWins||0}</div></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);text-align:center">Lacznie ${total} meczow</div>`;
+        }
+        h2hHtml += '<div style="color:var(--muted);text-align:center;padding:12px;font-size:11px">Szczegolowe mecze H2H niedostepne przez API</div>';
+        el.innerHTML = `<div class="card full"><div class="card-head">H2H</div><div class="card-body">${h2hHtml}</div></div>`;
+        break;
+      }
+      case 'standings': {
+        if (!tid || !sid) { el.innerHTML = '<div class="error">Brak danych turnieju</div>'; break; }
+        const r = await api(`/api/tournaments/tournaments/${tid}/season/${sid}/standings`).catch(() => null);
+        if (!r?.standings?.length) { el.innerHTML = '<div class="error">Brak tabeli</div>'; break; }
+        const rows = r.standings.flatMap(s => s.rows||[]);
+        el.innerHTML = `<div class="card full"><div class="card-head">Tabela</div><div class="card-body"><table class="standings-table">
+          <thead><tr><th>#</th><th>Druzyna</th><th>M</th><th>Z</th><th>R</th><th>P</th><th>Pkt</th></tr></thead>
+          <tbody>${rows.map(r => `<tr><td class="pos">${r.position}</td><td>${r.team?.name||'?'}</td><td>${r.matches}</td><td>${r.wins}</td><td>${r.draws}</td><td>${r.losses}</td><td><b>${r.points}</b></td></tr>`).join('')}</tbody>
+        </table></div></div>`;
+        break;
+      }
+    }
+  } catch(e) {
+    el.innerHTML = `<div class="card full"><div class="card-body"><div class="error">Blad: ${e.message}</div></div></div>`;
+  }
+}
+
+// === STANDINGS ===
+async function loadStandings() {
+  const tournaments = [
+    {id:17,sid:76986,name:'Premier League'},{id:7,sid:76953,name:'Champions League'},
+    {id:35,sid:77333,name:'Bundesliga'},{id:23,sid:76457,name:'La Liga'},
+    {id:34,sid:77356,name:'Serie A'},{id:202,sid:76477,name:'Ekstraklasa'},
+  ];
+  showLoader();
+  try {
+    const results = await Promise.allSettled(tournaments.map(t => api(`/api/tournaments/tournaments/${t.id}/season/${t.sid}/standings`)));
+    let html = '<div class="grid">';
+    results.forEach((r,i) => {
+      const t = tournaments[i];
+      if (r.status==='rejected') { html += `<div class="card"><div class="card-head">${t.name}</div><div class="card-body"><div class="error">Blad</div></div></div>`; return; }
+      const rows = r.value.standings.flatMap(s => s.rows||[]);
+      html += `<div class="card"><div class="card-head">${t.name} <span class="badge">${rows.length}</span></div><div class="card-body"><table class="standings-table">
+        <thead><tr><th>#</th><th>Druzyna</th><th>M</th><th>Z</th><th>R</th><th>P</th><th>Pkt</th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td class="pos">${r.position}</td><td>${r.team?.name||'?'}</td><td>${r.matches}</td><td>${r.wins}</td><td>${r.draws}</td><td>${r.losses}</td><td><b>${r.points}</b></td></tr>`).join('')}</tbody>
+      </table></div></div>`;
+    });
+    html += '</div>';
+    document.getElementById('tabContent').innerHTML = html;
+  } catch(e) { showError(e); }
+}
+
+// === TOURNAMENTS ===
+async function loadTournamentsView() {
+  try {
+    const r = await api('/api/tournaments/tournaments');
+    document.getElementById('tabContent').innerHTML = `<div class="card full"><div class="card-head">Dostepne turnieje <span class="badge">${r.uniqueTournaments.length}</span></div>
+    <div class="card-body">${r.uniqueTournaments.map(t => `<div class="match-card" style="cursor:pointer" onclick="loadTournamentSeasons(${t.id},'${t.name}')"><div class="teams"><div class="h">${t.name}</div></div><div style="font-size:10px;color:var(--muted)">ID:${t.id}</div></div>`).join('')}</div></div>`;
+  } catch(e) { showError(e); }
+}
+
+async function loadTournamentSeasons(tid,name) {
+  showLoader();
+  try {
+    const r = await api(`/api/tournaments/tournaments/${tid}/seasons`);
+    document.getElementById('tabContent').innerHTML = `<div class="card full"><div class="card-head">${name} - Sezony <span class="badge">${r.seasons.length}</span></div>
+    <div class="card-body">${r.seasons.slice(0,10).map(s => `<div class="match-card" style="cursor:pointer" onclick="loadTournamentStandings(${tid},${s.id},'${name}','${s.name}')"><div class="teams"><div class="h">${s.name}</div></div><div style="font-size:10px;color:var(--muted)">ID:${s.id}</div></div>`).join('')}</div></div>
+    <br><button onclick="loadTab('tournaments')">Powrot</button>`;
+  } catch(e) { showError(e); }
+}
+
+async function loadTournamentStandings(tid,sid,name,sname) {
+  showLoader();
+  try {
+    const r = await api(`/api/tournaments/tournaments/${tid}/season/${sid}/standings`);
+    const rows = r.standings.flatMap(s => s.rows||[]);
+    document.getElementById('tabContent').innerHTML = `<div class="card full"><div class="card-head">${name} - ${sname} <span class="badge">${rows.length} druzyn</span></div>
+    <div class="card-body"><table class="standings-table"><thead><tr><th>#</th><th>Druzyna</th><th>M</th><th>Z</th><th>R</th><th>P</th><th>G+</th><th>G-</th><th>Pkt</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td class="pos">${r.position}</td><td>${r.team?.name||'?'}</td><td>${r.matches}</td><td>${r.wins}</td><td>${r.draws}</td><td>${r.losses}</td><td>${r.scoresFor}</td><td>${r.scoresAgainst}</td><td><b>${r.points}</b></td></tr>`).join('')}</tbody></table></div></div>
+    <br><button onclick="loadTournamentSeasons(${tid},'${name}')">Powrot</button>`;
+  } catch(e) { showError(e); }
+}
+
+loadLive();
+</script>
+</body>
+</html>
