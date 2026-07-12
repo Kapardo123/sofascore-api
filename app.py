@@ -21,6 +21,7 @@ def check_auth():
         return None
     api_key = (
         request.headers.get("X-RapidAPI-Proxy-Secret")
+        or request.headers.get("X-RapidAPI-Key")
         or request.headers.get("X-API-Key")
         or request.headers.get("Authorization", "").replace("Bearer ", "")
     )
